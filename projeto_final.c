@@ -442,11 +442,11 @@ void init_rtc(void) {
     // Configura data e hora inicial
     datetime_t t = {
         .year = 2026,   // Ano
-        .month = 1,     // Mês
-        .day = 30,      // Dia
-        .dotw = 5,      // Dia da semana (0=domingo)
-        .hour = 0,      // Hora
-        .min = 0,       // Minuto
+        .month = 2,     // Mês
+        .day = 8,      // Dia
+        .dotw = 0,      // Dia da semana (0=domingo)
+        .hour = 12,      // Hora
+        .min = 29,       // Minuto
         .sec = 0        // Segundo
     };
 
