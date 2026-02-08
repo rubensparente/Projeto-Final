@@ -84,13 +84,13 @@
 #define LOG_EVENTOS_INTERVAL_MS 1000    // Eventos são gravados imediatamente
 
 // Configurações da rede WiFi
-#define SSID "brisa-2838103"  // Nome da rede WiFi (SSID)
-#define PASS "5wfybzoj"       // Senha da rede WiFi
+#define SSID "Nome_Rede_Wifi"  // Nome da rede WiFi (SSID)
+#define PASS "Senha_Rede_Wifi"       // Senha da rede WiFi
 
 // Configurações do ThingsBoard Cloud
 #define THINGSBOARD_HOST "thingsboard.cloud"  // Endereço do servidor ThingsBoard
 #define THINGSBOARD_PORT 1883                 // Porta MQTT padrão
-#define THINGSBOARD_ACCESS_TOKEN "earh280znli7s12bf5yv"  // Token de acesso do dispositivo
+#define THINGSBOARD_ACCESS_TOKEN "Token_do_ThingsBoard"  // Token de acesso do dispositivo
 
 // Configurações do cliente MQTT
 #define MQTT_CLIENT_ID "gas-monitor-pico"  // Identificação do cliente MQTT
