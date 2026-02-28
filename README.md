@@ -158,9 +158,9 @@ monitoramento-glp-pico/
 
 | Parâmetro | Valor Padrão | Descrição |
 |-----------|--------------|-----------|
-| Limite Alerta | 100 ppm | LED vermelho acende |
-| Limite Perigo | 200 ppm | Sirene moderada |
-| Limite Crítico | 300 ppm | Sirene dupla acelerada |
+| Limite Alerta | 300 ppm | LED vermelho acende |
+| Limite Perigo | 600 ppm | Sirene moderada |
+| Limite Crítico | 1000 ppm | Sirene dupla acelerada |
 | Intervalo Leitura | 1000 ms | Leitura dos sensores |
 | Intervalo SD | 60000 ms | Gravação no cartão |
 | Intervalo MQTT | 60000 ms | Envio para cloud |
