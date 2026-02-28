@@ -210,9 +210,9 @@ Edite o arquivo `config.h`:
 | Estado | LED Verde | LED Vermelho | Significado |
 |--------|-----------|--------------|-------------|
 | Normal | ACESO | APAGADO | Sistema operando normalmente |
-| Alerta | APAGADO | PISCA (500ms) | GLP > 100 ppm |
-| Perigo | APAGADO | PISCA (250ms) | GLP > 200 ppm |
-| Crítico | APAGADO | PISCA (100ms) | GLP > 300 ppm |
+| Alerta | APAGADO | PISCA (500ms) | GLP > 300 ppm |
+| Perigo | APAGADO | PISCA (250ms) | GLP > 600 ppm |
+| Crítico | APAGADO | PISCA (100ms) | GLP > 1000 ppm |
 | Silenciado | PISCA (1000ms) | APAGADO | Alarme silenciado temporariamente |
 
 #### Display OLED
