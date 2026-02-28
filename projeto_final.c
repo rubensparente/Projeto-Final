@@ -77,9 +77,9 @@
 #define CALIBRATION_SAMPLES 50 // Número de amostras para calibração
 
 // Limites de concentração de GLP para acionamento de alarmes (AUMENTADOS)
-#define LIMITE_ALERTA 300   // ppm - nível de alerta (era 100)
-#define LIMITE_PERIGO 600   // ppm - nível de perigo (era 200)
-#define LIMITE_CRITICO 1000 // ppm - nível crítico (era 300)
+#define LIMITE_ALERTA 300   // ppm - nível de alerta
+#define LIMITE_PERIGO 600   // ppm - nível de perigo
+#define LIMITE_CRITICO 1000 // ppm - nível crítico
 
 // Tempo de timeout para silenciar alarme (5 minutos)
 #define SILENCIO_TIMEOUT_MS (5 * 60 * 1000)
