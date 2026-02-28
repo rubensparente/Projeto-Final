@@ -66,17 +66,17 @@
 #define SIRENE_CYCLE_MS 2000    // Duração de um ciclo completo da sirene (ms)
 #define SIRENE_STEP_MS 10       // Passo de tempo para mudança de frequência (ms)
 
-// ========== PARÂMETROS CORRIGIDOS DO SENSOR MQ-6 ==========
-// Parâmetros de calibração do sensor MQ-6 (ajustados)
-#define RL_VALUE 5.0        // Valor do resistor de carga em kΩ
-#define RO_CLEAN_AIR 20.0   // Resistência do sensor em ar limpo (kΩ) - padrão
-#define MIN_VALID_RS 1.0    // Mínimo valor válido de RS (kΩ) - REDUZIDO
-#define MAX_VALID_RS 100.0  // Máximo valor válido de RS (kΩ) - AUMENTADO
-#define FILTER_ALPHA 0.15   // Fator de suavização (menor = mais suave) - AJUSTADO
-#define PREHEAT_TIME_MS 30000 // Tempo de pré-aquecimento: 30 segundos
+// ========== PARÂMETROS REAJUSTADOS PARA O SEU SENSOR ==========
+#define RL_VALUE 5.0           // Valor do resistor de carga em kΩ
+#define RO_CLEAN_AIR 20.0      // Resistência do sensor em ar limpo (kΩ) - padrão
+#define MIN_VALID_RS 0.5       // Mínimo valor válido de RS (kΩ)
+#define MAX_VALID_RS 300.0     // Máximo valor válido de RS (kΩ) - AUMENTADO para 300kΩ
+#define FILTER_ALPHA 0.25      // Fator de suavização
+#define PREHEAT_TIME_MS 20000  // Tempo de pré-aquecimento: 20 segundos
 #define CALIBRATION_SAMPLES 50 // Número de amostras para calibração
+#define RS_AIR_RATIO 9.83      // Relação RS/R0 em ar limpo para MQ-6
 
-// Limites de concentração de GLP para acionamento de alarmes (AUMENTADOS)
+// Limites de concentração de GLP para acionamento de alarmes
 #define LIMITE_ALERTA 300   // ppm - nível de alerta
 #define LIMITE_PERIGO 600   // ppm - nível de perigo
 #define LIMITE_CRITICO 1000 // ppm - nível crítico
@@ -103,7 +103,7 @@
 #define MQTT_KEEP_ALIVE 60                  // Tempo de keep-alive em segundos
 #define TB_TELEMETRY_TOPIC "v1/devices/me/telemetry"  // Tópico para telemetria
 
-// ========== Enumeração para tipos de alarme (ATUALIZADA) ==========
+// ========== Enumeração para tipos de alarme ==========
 typedef enum {
     ALARME_NORMAL = 0,           // Estado normal/sem alarme (PADRÃO)
     ALARME_MANUAL = 1,
@@ -124,7 +124,7 @@ static bool bmp280_initialized = false;     // Flag de inicialização do BMP280
 static float mq6_R0 = RO_CLEAN_AIR;         // Valor de calibração do MQ-6
 static AHT10_Handle aht10;                  // Handler para sensor AHT10
 
-// ========== VARIÁVEIS CORRIGIDAS DO MQ-6 ==========
+// ========== VARIÁVEIS DO MQ-6 ==========
 static float gas_filtered = 10.0;           // Inicializa com valor mínimo realista
 static bool first_reading = true;           // Controle de primeira leitura
 
@@ -136,7 +136,7 @@ static volatile float gas_atual = 0;                 // Valor atual da concentra
 static volatile uint32_t silencio_inicio = 0;        // Tempo de início do silenciamento
 static bool gas_anterior_em_alerta = false;          // Para detectar transições de estado
 
-// ========== Variável para armazenar tipo atual de alarme (PADRÃO NORMAL) ==========
+// ========== Variável para armazenar tipo atual de alarme ==========
 static volatile tipo_alarme_t tipo_alarme_atual = ALARME_NORMAL;
 
 // Variável para controle do dia atual (para criação de arquivos diários)
@@ -170,7 +170,7 @@ tipo_alarme_t get_tipo_alarme_atual(void) {
     return tipo_alarme_atual;
 }
 
-// ========== Função para definir estado normal (padrão) ==========
+// ========== Função para definir estado normal ==========
 void set_estado_normal(void) {
     alarme_ativa = false;
     alarme_manual = false;
@@ -249,7 +249,7 @@ bool create_sensor_header(const char* filename) {
     return (fr == FR_EXIST);
 }
 
-// ========== Função para criar cabeçalho do arquivo de eventos (ATUALIZADA) ==========
+// ========== Função para criar cabeçalho do arquivo de eventos ==========
 bool create_event_header(const char* filename) {
     if (!sd_ready) return false;
 
@@ -304,7 +304,7 @@ bool log_sensores(float temp_aht, float hum, float temp_bmp, float pressure,
     return true;
 }
 
-// ========== Função para gravar eventos no cartão SD (ATUALIZADA) ==========
+// ========== Função para gravar eventos no cartão SD ==========
 void log_evento(const char* evento, const char* detalhes, bool eh_manual, 
                 bool mqtt_enviado, tipo_alarme_t tipo_alarme) {
     if (!sd_ready) return;
@@ -575,7 +575,7 @@ void init_wifi_mqtt(void) {
     }
 }
 
-// ========== Função para publicar dados no ThingsBoard (ATUALIZADA) ==========
+// ========== Função para publicar dados no ThingsBoard ==========
 void publish_to_thingsboard(float temp_aht, float hum, float temp_bmp, float pressure, 
                             float altitude, float gas, bool alarm_active) {
     if (!mqtt_connected || mqtt_client == NULL) {
@@ -633,160 +633,204 @@ sensors_t read_bmp280(void) {
     return data;
 }
 
-// ========== FUNÇÕES CORRIGIDAS DO SENSOR MQ-6 ==========
+// ========== FUNÇÕES ADAPTATIVAS DO SENSOR MQ-6 ==========
 
-// Função para ler valor bruto do MQ-6 com validação
-float read_mq6_raw(void) {
-    uint16_t adc_value = adc_read();
-    float voltage = adc_value * (3.3f / 4095.0f);
+// Função de calibração adaptativa
+float calibrate_mq6_adaptive(void) {
+    printf("\n[MQ-6] Iniciando calibração adaptativa...\n");
+    printf("[MQ-6] IMPORTANTE: O sistema detectará automaticamente a faixa do sensor\n");
+    printf("[MQ-6] Aguarde 20 segundos para estabilização...\n");
     
-    // Proteção contra tensão muito baixa
-    if (voltage < 0.01) {
-        return MIN_VALID_RS;
+    // Período de aquecimento
+    for (int i = 0; i < PREHEAT_TIME_MS / 1000; i++) {
+        if (i % 5 == 0) {
+            printf("[MQ-6] Estabilizando: %d/%ds\n", i, PREHEAT_TIME_MS / 1000);
+            
+            // Mostra leitura atual durante aquecimento
+            uint16_t adc_temp = adc_read();
+            float volt_temp = adc_temp * (3.3f / 4095.0f);
+            float rs_temp = (3.3f - volt_temp) / volt_temp * RL_VALUE;
+            printf("[MQ-6] Leitura atual: ADC=%u, RS=%.2f kΩ\n", adc_temp, rs_temp);
+        }
+        sleep_ms(1000);
     }
     
-    float rs = (3.3f - voltage) / voltage * RL_VALUE;
+    printf("[MQ-6] Coletando %d amostras para calibração...\n", CALIBRATION_SAMPLES);
     
-    // Limita valores dentro da faixa esperada
-    if (rs < MIN_VALID_RS) rs = MIN_VALID_RS;
-    if (rs > MAX_VALID_RS) rs = MAX_VALID_RS;
+    float rs_values[50];
+    int valid_samples = 0;
+    float min_rs_detected = 9999;
+    float max_rs_detected = 0;
     
-    return rs;
+    for (int i = 0; i < CALIBRATION_SAMPLES; i++) {
+        uint16_t adc = adc_read();
+        float voltage = adc * (3.3f / 4095.0f);
+        float rs = (3.3f - voltage) / voltage * RL_VALUE;
+        
+        // Registra valores para diagnóstico
+        if (rs < min_rs_detected) min_rs_detected = rs;
+        if (rs > max_rs_detected) max_rs_detected = rs;
+        
+        // Faixa MUITO ampla para aceitar qualquer leitura razoável
+        if (rs > 0.1 && rs < 500.0) {
+            rs_values[valid_samples] = rs;
+            valid_samples++;
+            printf("[MQ-6] Amostra %d: ADC=%4u | Tensão=%.3fV | RS=%.2f kΩ (válida: %d/%d)\n", 
+                   i, adc, voltage, rs, valid_samples, CALIBRATION_SAMPLES);
+        } else {
+            printf("[MQ-6] Amostra %d: ADC=%4u | Tensão=%.3fV | RS=%.2f kΩ (rejeitada)\n", 
+                   i, adc, voltage, rs);
+        }
+        
+        sleep_ms(50);
+    }
+    
+    printf("\n[MQ-6] Estatísticas da calibração:\n");
+    printf("[MQ-6] Faixa RS detectada: min=%.2f kΩ, max=%.2f kΩ\n", 
+           min_rs_detected, max_rs_detected);
+    printf("[MQ-6] Amostras válidas: %d/%d\n", valid_samples, CALIBRATION_SAMPLES);
+    
+    // Se não temos amostras válidas, usa a faixa detectada para criar uma
+    if (valid_samples == 0) {
+        printf("[MQ-6] Nenhuma amostra válida! Usando valores detectados...\n");
+        
+        // Usa a média entre min e max detectados
+        if (min_rs_detected < 500 && max_rs_detected > 0.1) {
+            float rs_estimado = (min_rs_detected + max_rs_detected) / 2;
+            if (rs_estimado > 500) rs_estimado = 200; // Limite seguro
+            
+            float r0_calculado = rs_estimado / RS_AIR_RATIO;
+            
+            printf("\n[MQ-6] ===== CALIBRAÇÃO ESTIMADA =====\n");
+            printf("[MQ-6] RS estimado = %.2f kΩ (baseado na faixa observada)\n", rs_estimado);
+            printf("[MQ-6] R0 calculado = %.2f kΩ\n", r0_calculado);
+            
+            return r0_calculado;
+        }
+        
+        return RO_CLEAN_AIR;
+    }
+    
+    // Temos amostras válidas - calcula a média
+    float sum = 0;
+    for (int i = 0; i < valid_samples; i++) {
+        sum += rs_values[i];
+    }
+    float rs_media = sum / valid_samples;
+    
+    // Calcula R0 usando a relação típica
+    float r0_calculado = rs_media / RS_AIR_RATIO;
+    
+    printf("\n[MQ-6] ===== CALIBRAÇÃO SUCESSO! =====\n");
+    printf("[MQ-6] RS médio = %.2f kΩ\n", rs_media);
+    printf("[MQ-6] R0 calculado = %.2f kΩ\n", r0_calculado);
+    printf("[MQ-6] Relação RS/R0 em ar limpo: %.2f\n", rs_media / r0_calculado);
+    
+    return r0_calculado;
 }
 
-// Função para ler média de várias amostras do MQ-6
-float read_mq6_average(int samples) {
-    float sum = 0;
-    int valid_samples = 0;
+// ========== FUNÇÃO DE LEITURA ADAPTATIVA ==========
+float read_gas_concentration_adaptive(void) {
+    static float last_valid_reading = 10.0;
     
-    for (int i = 0; i < samples; i++) {
-        float rs = read_mq6_raw();
+    // Lê média de 10 amostras
+    float sum_rs = 0;
+    int valid = 0;
+    
+    for (int i = 0; i < 10; i++) {
+        uint16_t adc = adc_read();
+        float voltage = adc * (3.3f / 4095.0f);
         
-        // Aceita valores dentro da faixa esperada
-        if (rs >= MIN_VALID_RS && rs <= MAX_VALID_RS) {
-            sum += rs;
-            valid_samples++;
+        // Proteção contra divisão por zero
+        if (voltage < 0.001) voltage = 0.001;
+        if (voltage > 3.299) voltage = 3.299;
+        
+        float rs = (3.3f - voltage) / voltage * RL_VALUE;
+        
+        // Aceita qualquer valor razoável
+        if (rs > 0.1 && rs < 1000) {
+            sum_rs += rs;
+            valid++;
         }
         
         sleep_ms(10);
     }
     
-    if (valid_samples > 0) {
-        return sum / valid_samples;
+    if (valid == 0) {
+        return gas_filtered; // Retorna último valor válido
     }
     
-    return MIN_VALID_RS;
-}
-
-// ========== FUNÇÃO CORRIGIDA - NÃO ZERA MAIS AS LEITURAS ==========
-float calculate_gas_concentration(float rs_ro_ratio) {
-    // Proteção contra valores inválidos - AGORA MAIS PERMISSIVA
-    if (rs_ro_ratio <= 0.001) {  // REDUZIDO de 0.1 para 0.001
-        return 10;  // RETORNA 10 ppm em vez de 0
-    }
-    if (rs_ro_ratio > 1000) {    // AUMENTADO de 200 para 1000
-        return 10000;
-    }
-    
-    float log_ratio = log10f(rs_ro_ratio);
-    // Coeficientes corrigidos para o MQ-6 (GLP)
-    float log_ppm = -1.53f * log_ratio + 1.90f;
-    float ppm = powf(10.0f, log_ppm);
-    
-    // Limita a faixa realista - NÃO ZERA MAIS
-    if (ppm < 10) ppm = 10;      // Mínimo: 10 ppm (ar ambiente)
-    if (ppm > 10000) ppm = 10000;
-    
-    return ppm;
-}
-
-// ========== NOVA FUNÇÃO - LEITURA COM FILTRO ==========
-float read_gas_concentration(void) {
-    // Lê média de 15 amostras
-    float rs = read_mq6_average(15);
+    float rs_avg = sum_rs / valid;
     
     if (mq6_R0 <= 0) {
         mq6_R0 = RO_CLEAN_AIR;
     }
     
-    float rs_ro_ratio = rs / mq6_R0;
-    float ppm_raw = calculate_gas_concentration(rs_ro_ratio);
+    float rs_ro_ratio = rs_avg / mq6_R0;
     
-    // Filtro passa-baixa exponencial
+    // Proteção contra valores extremos
+    if (rs_ro_ratio < 0.01) rs_ro_ratio = 0.01;
+    if (rs_ro_ratio > 100) rs_ro_ratio = 100;
+    
+    float log_ratio = log10f(rs_ro_ratio);
+    float log_ppm = -1.53f * log_ratio + 1.90f;
+    float ppm_raw = powf(10.0f, log_ppm);
+    
+    // Filtro passa-baixa
     if (first_reading) {
         gas_filtered = ppm_raw;
         first_reading = false;
     } else {
-        gas_filtered = (FILTER_ALPHA * ppm_raw) + ((1.0f - FILTER_ALPHA) * gas_filtered);
+        // Filtro adaptativo baseado na magnitude da mudança
+        float diff_ratio = fabs(ppm_raw - gas_filtered) / gas_filtered;
+        float alpha = (diff_ratio > 0.5) ? 0.1 : FILTER_ALPHA;
+        gas_filtered = (alpha * ppm_raw) + ((1.0f - alpha) * gas_filtered);
     }
     
-    // Garante valor mínimo
-    if (gas_filtered < 10.0f) {
-        gas_filtered = 10.0f;
-    }
+    // Limites realistas
+    if (gas_filtered < 10) gas_filtered = 10;
+    if (gas_filtered > 10000) gas_filtered = 10000;
     
     return gas_filtered;
 }
 
-// ========== FUNÇÃO DE CALIBRAÇÃO CORRIGIDA ==========
-float calibrate_mq6(void) {
-    printf("[MQ-6] Iniciando calibração em ar limpo...\n");
-    printf("[MQ-6] Aguarde 30 segundos para estabilização...\n");
-    
-    float sum = 0;
-    int samples = 0;
-    
-    // Período de aquecimento
-    sleep_ms(PREHEAT_TIME_MS);
-    
-    printf("[MQ-6] Coletando %d amostras...\n", CALIBRATION_SAMPLES);
-    
-    for (int i = 0; i < CALIBRATION_SAMPLES; i++) {
-        float rs = read_mq6_raw();
-        
-        // Faixa mais ampla para ar limpo
-        if (rs > 8.0 && rs < 50.0) {
-            sum += rs;
-            samples++;
-            printf("[MQ-6] Amostra %d: RS = %.2f kΩ (válida)\n", i, rs);
-        }
-        
-        sleep_ms(100);
-    }
-    
-    if (samples > 20) {  // REDUZIDO de 25 para 20
-        float rs_media = sum / samples;
-        float r0_calculado = rs_media / 10.0f;
-        
-        printf("[MQ-6] Calibração SUCESSO!\n");
-        printf("[MQ-6] RS médio = %.2f kΩ\n", rs_media);
-        printf("[MQ-6] R0 calculado = %.2f kΩ\n", r0_calculado);
-        printf("[MQ-6] Amostras válidas: %d\n", samples);
-        
-        return r0_calculado;
-    }
-    
-    printf("[MQ-6] Calibração FALHOU! Usando R0 padrão: %.2f kΩ\n", RO_CLEAN_AIR);
-    return RO_CLEAN_AIR;
-}
-
-// ========== FUNÇÃO DE INICIALIZAÇÃO CORRIGIDA ==========
-void init_mq6(void) {
+// ========== FUNÇÃO DE INICIALIZAÇÃO ADAPTATIVA ==========
+void init_mq6_adaptive(void) {
     adc_init();
     adc_gpio_init(MQ6_PIN);
     adc_select_input(ADC_CHANNEL);
     
-    printf("[MQ-6] Sensor inicializado no pino %d\n", MQ6_PIN);
+    printf("\n[MQ-6] Inicializando com calibração adaptativa...\n");
+    printf("[MQ-6] Pino %d, Canal ADC %d\n", MQ6_PIN, ADC_CHANNEL);
+    printf("[MQ-6] Faixa RS configurada: 0.1 a 500 kΩ\n");
+    
+    // Mostra leitura inicial
+    uint16_t adc_inicial = adc_read();
+    float volt_inicial = adc_inicial * (3.3f / 4095.0f);
+    float rs_inicial = (3.3f - volt_inicial) / volt_inicial * RL_VALUE;
+    
+    printf("[MQ-6] Leitura inicial: ADC=%u (0x%04X), Tensão=%.3fV, RS=%.2f kΩ\n", 
+           adc_inicial, adc_inicial, volt_inicial, rs_inicial);
+    
+    if (adc_inicial < 10) {
+        printf("[MQ-6] AVISO: ADC muito baixo! Verifique conexões\n");
+    } else if (adc_inicial > 4085) {
+        printf("[MQ-6] AVISO: ADC muito alto! Sensor pode estar desconectado\n");
+    }
     
     // Reset das variáveis de filtro
     first_reading = true;
     gas_filtered = 10.0;
     
-    // Calibração
-    mq6_R0 = calibrate_mq6();
+    // Calibração adaptativa
+    mq6_R0 = calibrate_mq6_adaptive();
+    
+    printf("[MQ-6] R0 final: %.2f kΩ\n", mq6_R0);
+    printf("[MQ-6] Em ar limpo, RS deve ser aproximadamente %.2f kΩ\n", 
+           mq6_R0 * RS_AIR_RATIO);
 }
 
-// Função para exibir dados no display OLED (SEM ALTERAÇÕES - MANTIDA ORIGINAL)
+// Função para exibir dados no display OLED
 void display_data(float temp_aht, float hum, float temp_bmp, float pressure, float altitude,
                   float gas_concentration) {
     char line1[32], line2[32], line3[32];
@@ -929,7 +973,7 @@ void led_buzzer_task(void *pvParameters) {
     }
 }
 
-// ========== Tarefa de botões (ATUALIZADA) ==========
+// ========== Tarefa de botões ==========
 void buttons_task(void *pvParameters) {
     bool last_silence_state = true;
     bool last_manual_state = true;
@@ -980,7 +1024,7 @@ void buttons_task(void *pvParameters) {
     }
 }
 
-// ========== Tarefa principal (ATUALIZADA) ==========
+// ========== Tarefa principal ==========
 void main_task(void *pvParameters) {
     aht10.iface.i2c_write = i2c_write;
     aht10.iface.i2c_read = i2c_read;
@@ -1001,8 +1045,8 @@ void main_task(void *pvParameters) {
         printf("[BMP280] Sensor não detectado\n");
     }
 
-    // ========== INICIALIZAÇÃO CORRIGIDA DO MQ-6 ==========
-    init_mq6();
+    // ========== INICIALIZAÇÃO ADAPTATIVA DO MQ-6 ==========
+    init_mq6_adaptive();
 
     if (!AHT10_Init(&aht10)) {
         printf("[AHT10] Sensor não inicializado\n");
@@ -1028,11 +1072,11 @@ void main_task(void *pvParameters) {
         AHT10_ReadTemperatureHumidity(&aht10, &temp_aht, &hum);
         bmp_data = read_bmp280();
 
-        // ========== LEITURA CORRIGIDA DO GÁS ==========
-        gas_concentration = read_gas_concentration();
+        // ========== LEITURA ADAPTATIVA DO GÁS ==========
+        gas_concentration = read_gas_concentration_adaptive();
         gas_atual = gas_concentration;
 
-        // ========== Controle de alarme automático (ATUALIZADO) ==========
+        // ========== Controle de alarme automático ==========
         if (!alarme_manual) {
             bool gas_em_alerta = (gas_concentration >= LIMITE_ALERTA);
             tipo_alarme_t novo_tipo_alarme = tipo_alarme_atual;
@@ -1137,14 +1181,14 @@ void main_task(void *pvParameters) {
     }
 }
 
-// ========== Função principal (ATUALIZADA) ==========
+// ========== Função principal ==========
 int main() {
     stdio_init_all();
     sleep_ms(3000);
 
     printf("\n=== SISTEMA DE MONITORAMENTO AMBIENTAL COM GLP (THINGSBOARD) ===\n");
     printf("=== COM IDENTIFICAÇÃO COMPLETA DE TIPO DE ALARME ===\n");
-    printf("=== MQ-6 CORRIGIDO - SEM ZERAR LEITURAS ===\n");
+    printf("=== MQ-6 ADAPTATIVO - CALIBRAÇÃO AUTOMÁTICA ===\n");
     printf("=== TIPOS: NORMAL (PADRÃO) | MANUAL | AUTO_ALERTA | AUTO_PERIGO | AUTO_CRITICO ===\n\n");
 
     init_leds_botao_buzzers();
@@ -1185,7 +1229,7 @@ int main() {
     printf("Sistema pronto. Modo: NORMAL (padrão)\n");
     printf("Limites: ALERTA=%dppm PERIGO=%dppm CRITICO=%dppm\n", 
            LIMITE_ALERTA, LIMITE_PERIGO, LIMITE_CRITICO);
-    printf("MQ-6: Valor mínimo 10ppm - NÃO ZERA MAIS\n");
+    printf("MQ-6: Calibração adaptativa - se adapta à faixa do sensor\n");
     printf("Gravação SD: a cada %d ms\n", LOG_SENSORES_INTERVAL_MS);
     printf("Envio MQTT: a cada %d ms (separado) + imediato em alertas\n", ENVIO_MQTT_INTERVAL_MS);
     printf("Tipos de alarme registrados no arquivo EVENTOS_*.csv: NORMAL, MANUAL, AUTO_ALERTA, AUTO_PERIGO, AUTO_CRITICO\n\n");
